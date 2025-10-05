@@ -1,0 +1,26 @@
+<resources>
+    <string name="app_name">大乐透数据管理</string>
+    <string name="issue_number_hint">期号（如：25001）</string>
+    <string name="draw_date_hint">开奖日期（如：2025-08-11）</string>
+    <string name="front_numbers_hint">前区5个号码（空格分隔）</string>
+    <string name="back_numbers_hint">后区2个号码（空格分隔）</string>
+    <string name="input_title">输入开奖号码</string>
+    <string name="edit_title">修改开奖号码</string>
+    <string name="save">存入</string>
+    <string name="cancel">取消</string>
+    <string name="modify">修改</string>
+    <string name="delete">删除</string>
+    <string name="close">关闭</string>
+    <string name="export">导出</string>
+    <string name="import_data">导入</string>
+    <string name="date_picker_hint">点击选择开奖日期</string>
+    <string name="view_records">查看记录</string>
+    <string name="confirm_numbers">确认号码</string>
+    <string name="cancel_confirm">取消确认</string>
+    <string name="generation_records">生成记录</string>
+    <string name="confirmed_numbers">已确认号码</string>
+    <string name="select_to_confirm">选择一组号码作为确认号码</string>
+    <string name="view_scores">查看分数</string>
+    <string name="group_scores">各组分数</string>
+    <string name="no_confirmed_numbers">暂无确认号码，无法查看分数</string>
+</resources>

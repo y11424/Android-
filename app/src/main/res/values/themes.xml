@@ -1,0 +1,61 @@
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <!-- Base application theme. -->
+    <style name="Base.Theme.Dlt" parent="Theme.Material3.DayNight.NoActionBar">
+        <!-- Primary colors -->
+        <item name="colorPrimary">@color/primary_color</item>
+        <item name="colorPrimaryVariant">@color/primary_dark</item>
+        <item name="colorOnPrimary">@color/white</item>
+        
+        <!-- Secondary colors -->
+        <item name="colorSecondary">@color/accent_color</item>
+        <item name="colorSecondaryVariant">@color/accent_dark</item>
+        <item name="colorOnSecondary">@color/white</item>
+        
+        <!-- Background colors -->
+        <item name="android:colorBackground">@color/background_light</item>
+        <item name="colorSurface">@color/background_white</item>
+        <item name="colorOnSurface">@color/primary_text</item>
+        
+        <!-- Text colors -->
+        <item name="android:textColorPrimary">@color/primary_text</item>
+        <item name="android:textColorSecondary">@color/secondary_text</item>
+        <item name="android:textColorHint">@color/hint_text</item>
+        
+        <!-- Window background -->
+        <item name="android:windowBackground">@color/background_light</item>
+    </style>
+
+    <style name="Theme.Dlt" parent="Base.Theme.Dlt" />
+    
+    <!-- Custom button styles -->
+    <style name="CustomButtonPrimary" parent="Widget.Material3.Button">
+        <item name="backgroundTint">@color/primary_color</item>
+        <item name="android:textColor">@color/white</item>
+        <item name="cornerRadius">12dp</item>
+        <item name="android:elevation">2dp</item>
+        <item name="android:stateListAnimator">@null</item>
+    </style>
+    
+    <style name="CustomButtonSecondary" parent="Widget.Material3.Button.OutlinedButton">
+        <item name="strokeColor">@color/primary_color</item>
+        <item name="android:textColor">@color/primary_color</item>
+        <item name="cornerRadius">12dp</item>
+    </style>
+    
+    <style name="CustomCardView" parent="Widget.MaterialComponents.CardView">
+        <item name="cardCornerRadius">16dp</item>
+        <item name="cardElevation">4dp</item>
+        <item name="cardBackgroundColor">@color/card_background</item>
+    </style>
+    
+    <style name="TitleTextStyle">
+        <item name="android:textSize">18sp</item>
+        <item name="android:textStyle">bold</item>
+        <item name="android:textColor">@color/primary_text</item>
+    </style>
+    
+    <style name="SubtitleTextStyle">
+        <item name="android:textSize">16sp</item>
+        <item name="android:textColor">@color/secondary_text</item>
+    </style>
+</resources>

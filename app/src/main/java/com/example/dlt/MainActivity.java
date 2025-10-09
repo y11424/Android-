@@ -157,7 +157,8 @@ public class MainActivity extends AppCompatActivity {
             "第8组：基于所有历史数据，使用朴素贝叶斯模型分析各位置号码分布特征，结合拉普拉斯平滑生成预测号码",
             "第9组：基于最近10期开奖数据，模拟神经网络前向传播过程，通过隐藏层非线性变换，计算各号码出现概率并加权随机生成",
             "第10组：分析号码出现的时间周期性规律，结合季节性趋势、长期趋势和冷号权重，基于时间序列模型预测最可能的号码组合",
-            "第11组：完全随机算法，不依赖任何历史数据，纯随机从前区1-35中选5个号码，从后区1-12中选2个号码"
+            "第11组：完全随机算法，不依赖任何历史数据，纯随机从前区1-35中选5个号码，从后区1-12中选2个号码",
+            "第12组：基于上一期连号检测的智能预测算法。前区规则：检查上一期是否有连号，若有则从未出现和最少出现的号码中选择；若无则从未出现的号码中选1个，从最少出现的号码中选2个，从第二少出现的号码中选2个连续号码。后区规则：从未出现和最少出现的号码中各选1个，且不能是上一期出现的号码。"
     };
 
     /**
@@ -1194,7 +1195,7 @@ public class MainActivity extends AppCompatActivity {
         }
         
         // 初始化所有组的分数为0（如果没有记录）
-        for (int i = 1; i <= 11; i++) {
+        for (int i = 1; i <= 12; i++) {
             if (!groupScores.containsKey(i)) {
                 groupScores.put(i, 0);
             }
@@ -1207,7 +1208,7 @@ public class MainActivity extends AppCompatActivity {
         
         // 保存分数
         StringBuilder sb = new StringBuilder();
-        for (int i = 1; i <= 11; i++) {
+        for (int i = 1; i <= 12; i++) {
             if (i > 1) sb.append(",");
             sb.append(i).append(":").append(groupScores.getOrDefault(i, 0));
         }
@@ -1247,7 +1248,7 @@ public class MainActivity extends AppCompatActivity {
             for (String ruleStr : ruleArray) {
                 try {
                     int ruleNum = Integer.parseInt(ruleStr.trim());
-                    if (ruleNum >= 1 && ruleNum <= 11) {
+                    if (ruleNum >= 1 && ruleNum <= 12) {
                         blockedRules.add(ruleNum);
                     }
                 } catch (Exception e) {
@@ -1279,7 +1280,7 @@ public class MainActivity extends AppCompatActivity {
         
         StringBuilder sb = new StringBuilder();
         sb.append("各组分数情况：\n\n");
-        for (int i = 1; i <= 11; i++) {
+        for (int i = 1; i <= 12; i++) {
             int score = groupScores.getOrDefault(i, 0);
             int maxPrize = groupMaxPrize.getOrDefault(i, 0);
             int prizeCount = groupMaxPrizeCount.getOrDefault(i, 0);
@@ -1309,7 +1310,7 @@ public class MainActivity extends AppCompatActivity {
                 .setPositiveButton("确定", new DialogInterface.OnClickListener() {
                     @Override
                     public void onClick(DialogInterface dialog, int which) {
-                        for (int i = 1; i <= 11; i++) {
+                        for (int i = 1; i <= 12; i++) {
                             groupScores.put(i, 0);
                             groupMaxPrize.remove(i);  // 同时清空最大中奖等级记录
                             groupMaxPrizeCount.remove(i);  // 清空中奖次数记录
@@ -1376,8 +1377,8 @@ public class MainActivity extends AppCompatActivity {
         // 添加调试信息
         android.util.Log.d("DLT_DEBUG", "解析结果 - 前区组数: " + confirmedFrontGroups.size() + ", 后区组数: " + confirmedBackGroups.size());
         
-        if (confirmedFrontGroups.size() != 11 || confirmedBackGroups.size() != 11) {
-            String debugInfo = String.format("确认号码格式错误，无法进行计算。解析到前区%d组，后区%d组（期望各11组）", 
+        if (confirmedFrontGroups.size() != 12 || confirmedBackGroups.size() != 12) {
+            String debugInfo = String.format("确认号码格式错误，无法进行计算。解析到前区%d组，后区%d组（期望各12组）", 
                 confirmedFrontGroups.size(), confirmedBackGroups.size());
             Toast.makeText(this, debugInfo, Toast.LENGTH_LONG).show();
             android.util.Log.e("DLT_ERROR", debugInfo);
@@ -1394,7 +1395,7 @@ public class MainActivity extends AppCompatActivity {
         resultMessage.append("中奖结果：\n\n");
         
         // 对比每一组（跳过被屏蔽的规则）
-        for (int groupIndex = 0; groupIndex < 11; groupIndex++) {
+        for (int groupIndex = 0; groupIndex < 12; groupIndex++) {
             if (blockedRules.contains(groupIndex + 1)) {
                 // 被屏蔽的规则不参与中奖计算
                 continue;

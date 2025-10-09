@@ -12,22 +12,24 @@ import java.util.Set;
 
 /**
  * 彩票号码生成器类
- * 负责实现10种不同算法的彩票号码生成逻辑
+ * 负责实现12种不同算法的彩票号码生成逻辑
  * 
  * 包含以下算法：
  * 1-6组：基于近10期历史数据的传统算法
  * 7-10组：基于所有历史数据的高级机器学习算法
+ * 11组：完全随机算法
+ * 12组：基于连号检测的智能预测算法
  */
 public class NumberGenerator {
     
     /**
      * 生成结果封装类
-     * 用于封装十组号码生成结果的数据结构
+     * 用于封装十二组号码生成结果的数据结构
      */
     public static class GenerationResult {
         private String displayText;          // 用于界面显示的格式化文本
-        private List<List<Integer>> frontNumbers; // 十组前区号码的二维列表
-        private List<List<Integer>> backNumbers;  // 十组后区号码的二维列表
+        private List<List<Integer>> frontNumbers; // 十二组前区号码的二维列表
+        private List<List<Integer>> backNumbers;  // 十二组后区号码的二维列表
         
         /**
          * 构造函数
@@ -48,17 +50,19 @@ public class NumberGenerator {
     }
     
     /**
-     * 主入口方法：生成所有10组号码
+     * 主入口方法：生成所有12组号码
      * 
      * 实现逻辑：
      * 1. 首先验证历史数据是否足够
      * 2. 统计近10期数据作为前6组算法的基础
      * 3. 按顺序生成前6组（传统算法）
      * 4. 按顺序生成后4组（机器学习算法）
-     * 5. 格式化输出结果
+     * 5. 按顺序生成第11组（完全随机算法）
+     * 6. 按顺序生成第12组（连号检测算法）
+     * 7. 格式化输出结果
      * 
      * @param historyList 历史开奖数据列表
-     * @return GenerationResult 包含所有10组号码的结果对象
+     * @return GenerationResult 包含所有12组号码的结果对象
      */
     public static GenerationResult generateAllNumbers(List<LotteryEntry> historyList, Set<Integer> blockedRules) {
         // 第一步：过滤掉被屏蔽的期数，确保算法只使用有效数据
@@ -74,7 +78,7 @@ public class NumberGenerator {
             return new GenerationResult("请先存入至少一期有效数据！", new ArrayList<>(), new ArrayList<>());
         }
         
-        // 初始化结果存储容器：各存储10组前区和后区号码
+        // 初始化结果存储容器：各存储12组前区和后区号码
         List<List<Integer>> resultFront = new ArrayList<>();
         List<List<Integer>> resultBack = new ArrayList<>();
         
@@ -164,6 +168,15 @@ public class NumberGenerator {
             resultBack.add(new ArrayList<>());
         }
         
+        // 第12组：连号检测预测算法 - 基于上一期连号情况的智能预测
+        if (!blockedRules.contains(12)) {
+            resultFront.add(consecutiveDetectionFrontNumbers(filteredHistory));
+            resultBack.add(consecutiveDetectionBackNumbers(filteredHistory));
+        } else {
+            resultFront.add(new ArrayList<>());
+            resultBack.add(new ArrayList<>());
+        }
+        
         // =============================================================================
         // 第四阶段：格式化输出结果
         // =============================================================================
@@ -171,8 +184,8 @@ public class NumberGenerator {
         // 构建用于界面显示的格式化字符串
         StringBuilder sb = new StringBuilder();
         
-        // 显示所有11组（包括被屏蔽的）
-        for (int i = 0; i < 11; i++) {
+        // 显示所有12组（包括被屏蔽的）
+        for (int i = 0; i < 12; i++) {
             if (blockedRules.contains(i + 1)) {
                 sb.append(String.format("第%d组：[已屏蔽] 不生成号码\n", i + 1));
             } else {
@@ -1131,6 +1144,337 @@ public class NumberGenerator {
         Collections.shuffle(pool);
         List<Integer> result = pool.subList(0, 2);
         Collections.sort(result);
+        return result;
+    }
+    
+    // =============================================================================
+    // 第12组：连号检测预测算法
+    // =============================================================================
+    
+    /**
+     * 第12组前区号码生成算法 - 基于连续数字检测的智能预测
+     * 
+     * 规则：
+     * 1. 检查上一期前区是否存在连续数字（例如：12,13）
+     * 2. 情况A（上一期有连号）：
+     *    - 从近十期前区从未出现过的号码中，随机选择1至3个
+     *    - 从近十期前区出现次数最少的号码中，随机选择1至3个
+     * 3. 情况B（上一期无连号）：
+     *    - 从近十期前区从未出现过的号码中，随机选择1个
+     *    - 从近十期前区出现次数最少的号码中，随机选择2个
+     *    - 从近十期前区出现次数第二少的号码中，随机选择2个连续的号码
+     * 
+     * @param historyList 历史开奖数据列表
+     * @return 预测的5个前区号码
+     */
+    private static List<Integer> consecutiveDetectionFrontNumbers(List<LotteryEntry> historyList) {
+        if (historyList.isEmpty()) {
+            return generateRandomFrontNumbers();
+        }
+        
+        // 统计近10期前区号码使用情况
+        Map<Integer, Integer> frontCount = new HashMap<>();
+        Set<Integer> usedFront = new HashSet<>();
+        int start = Math.max(0, historyList.size() - 10);
+        
+        for (int i = start; i < historyList.size(); i++) {
+            LotteryEntry entry = historyList.get(i);
+            for (int n : entry.getFrontNumbers()) {
+                usedFront.add(n);
+                frontCount.put(n, frontCount.getOrDefault(n, 0) + 1);
+            }
+        }
+        
+        // 获取上一期前区号码并检查是否有连号
+        List<Integer> lastFront = historyList.get(historyList.size() - 1).getFrontNumbers();
+        boolean hasConsecutive = hasConsecutiveNumbers(lastFront);
+        
+        // 准备候选号码池
+        List<Integer> neverAppeared = excludeSet(1, 35, usedFront); // 从未出现的号码
+        List<Integer> leastFrequent = getLeastFrequentNumbers(frontCount, usedFront, 1); // 出现次数最少的号码
+        List<Integer> secondLeastFrequent = getSecondLeastFrequentNumbers(frontCount, usedFront); // 出现次数第二少的号码
+        
+        List<Integer> result = new ArrayList<>();
+        Random rand = new Random();
+        
+        if (hasConsecutive) {
+            // 情况A：上一期有连号
+            // 从从未出现的号码中选择1-3个
+            int neverCount = Math.min(3, Math.max(1, neverAppeared.size()));
+            if (rand.nextBoolean() && neverCount > 1) neverCount = rand.nextInt(neverCount) + 1;
+            Collections.shuffle(neverAppeared);
+            for (int i = 0; i < Math.min(neverCount, neverAppeared.size()); i++) {
+                result.add(neverAppeared.get(i));
+            }
+            
+            // 从出现次数最少的号码中补足到5个
+            Collections.shuffle(leastFrequent);
+            for (int num : leastFrequent) {
+                if (result.size() >= 5) break;
+                if (!result.contains(num)) {
+                    result.add(num);
+                }
+            }
+        } else {
+            // 情况B：上一期无连号
+            // 从从未出现的号码中选择1个
+            if (!neverAppeared.isEmpty()) {
+                Collections.shuffle(neverAppeared);
+                result.add(neverAppeared.get(0));
+            }
+            
+            // 从出现次数最少的号码中选择2个
+            Collections.shuffle(leastFrequent);
+            int addedFromLeast = 0;
+            for (int num : leastFrequent) {
+                if (addedFromLeast >= 2) break;
+                if (!result.contains(num)) {
+                    result.add(num);
+                    addedFromLeast++;
+                }
+            }
+            
+            // 从出现次数第二少的号码中选择2个连续的号码
+            List<Integer> consecutivePair = findConsecutivePair(secondLeastFrequent, result);
+            result.addAll(consecutivePair);
+        }
+        
+        // 如果仍不足5个，从所有可用号码中随机补足
+        while (result.size() < 5) {
+            List<Integer> remaining = new ArrayList<>();
+            for (int i = 1; i <= 35; i++) {
+                if (!result.contains(i)) {
+                    remaining.add(i);
+                }
+            }
+            if (!remaining.isEmpty()) {
+                Collections.shuffle(remaining);
+                result.add(remaining.get(0));
+            } else {
+                break;
+            }
+        }
+        
+        Collections.sort(result);
+        return result;
+    }
+    
+    /**
+     * 第12组后区号码生成算法
+     * 
+     * 规则：
+     * 1. 从近十期后区从未出现过的号码中，随机选择1个
+     * 2. 从近十期后区出现次数最少的号码中，随机选择1个
+     * 3. 重要约束：选择的这两个号码，绝对不能是上一期后区已经出现过的号码
+     * 
+     * @param historyList 历史开奖数据列表
+     * @return 预测的2个后区号码
+     */
+    private static List<Integer> consecutiveDetectionBackNumbers(List<LotteryEntry> historyList) {
+        if (historyList.isEmpty()) {
+            return generateRandomBackNumbers();
+        }
+        
+        // 统计近10期后区号码使用情况
+        Map<Integer, Integer> backCount = new HashMap<>();
+        Set<Integer> usedBack = new HashSet<>();
+        int start = Math.max(0, historyList.size() - 10);
+        
+        for (int i = start; i < historyList.size(); i++) {
+            LotteryEntry entry = historyList.get(i);
+            for (int n : entry.getBackNumbers()) {
+                usedBack.add(n);
+                backCount.put(n, backCount.getOrDefault(n, 0) + 1);
+            }
+        }
+        
+        // 获取上一期后区号码（约束条件）
+        Set<Integer> lastBack = new HashSet<>(historyList.get(historyList.size() - 1).getBackNumbers());
+        
+        // 准备候选号码池（排除上一期后区号码）
+        List<Integer> neverAppeared = new ArrayList<>();
+        for (int i = 1; i <= 12; i++) {
+            if (!usedBack.contains(i) && !lastBack.contains(i)) {
+                neverAppeared.add(i);
+            }
+        }
+        
+        List<Integer> leastFrequent = new ArrayList<>();
+        if (!usedBack.isEmpty()) {
+            int minCount = Collections.min(backCount.values());
+            for (Map.Entry<Integer, Integer> entry : backCount.entrySet()) {
+                if (entry.getValue() == minCount && !lastBack.contains(entry.getKey())) {
+                    leastFrequent.add(entry.getKey());
+                }
+            }
+        }
+        
+        List<Integer> result = new ArrayList<>();
+        Random rand = new Random();
+        
+        // 从从未出现的号码中选择1个
+        if (!neverAppeared.isEmpty()) {
+            Collections.shuffle(neverAppeared);
+            result.add(neverAppeared.get(0));
+        }
+        
+        // 从出现次数最少的号码中选择1个
+        if (!leastFrequent.isEmpty()) {
+            Collections.shuffle(leastFrequent);
+            for (int num : leastFrequent) {
+                if (!result.contains(num)) {
+                    result.add(num);
+                    break;
+                }
+            }
+        }
+        
+        // 如果仍不足2个，从符合约束的号码中随机补足
+        while (result.size() < 2) {
+            List<Integer> remaining = new ArrayList<>();
+            for (int i = 1; i <= 12; i++) {
+                if (!result.contains(i) && !lastBack.contains(i)) {
+                    remaining.add(i);
+                }
+            }
+            if (!remaining.isEmpty()) {
+                Collections.shuffle(remaining);
+                result.add(remaining.get(0));
+            } else {
+                // 如果所有号码都被约束，则从次级候选中选择
+                for (int i = 1; i <= 12; i++) {
+                    if (!result.contains(i)) {
+                        result.add(i);
+                        break;
+                    }
+                }
+            }
+        }
+        
+        Collections.sort(result);
+        return result;
+    }
+    
+    /**
+     * 检查一组号码中是否存在连续数字
+     * 
+     * @param numbers 要检查的号码列表
+     * @return 如果存在连续数字返回true，否则返回false
+     */
+    private static boolean hasConsecutiveNumbers(List<Integer> numbers) {
+        List<Integer> sorted = new ArrayList<>(numbers);
+        Collections.sort(sorted);
+        
+        for (int i = 0; i < sorted.size() - 1; i++) {
+            if (sorted.get(i + 1) - sorted.get(i) == 1) {
+                return true;
+            }
+        }
+        return false;
+    }
+    
+    /**
+     * 获取出现次数最少的号码列表
+     * 
+     * @param countMap 号码出现次数统计
+     * @param usedNumbers 已使用过的号码集合
+     * @param minOccurrence 最小出现次数
+     * @return 出现次数最少的号码列表
+     */
+    private static List<Integer> getLeastFrequentNumbers(Map<Integer, Integer> countMap, Set<Integer> usedNumbers, int minOccurrence) {
+        List<Integer> result = new ArrayList<>();
+        
+        if (usedNumbers.isEmpty()) {
+            return result;
+        }
+        
+        int minCount = Collections.min(countMap.values());
+        if (minCount >= minOccurrence) {
+            for (Map.Entry<Integer, Integer> entry : countMap.entrySet()) {
+                if (entry.getValue() == minCount) {
+                    result.add(entry.getKey());
+                }
+            }
+        }
+        
+        return result;
+    }
+    
+    /**
+     * 获取出现次数第二少的号码列表
+     * 
+     * @param countMap 号码出现次数统计
+     * @param usedNumbers 已使用过的号码集合
+     * @return 出现次数第二少的号码列表
+     */
+    private static List<Integer> getSecondLeastFrequentNumbers(Map<Integer, Integer> countMap, Set<Integer> usedNumbers) {
+        List<Integer> result = new ArrayList<>();
+        
+        if (usedNumbers.isEmpty() || countMap.isEmpty()) {
+            return result;
+        }
+        
+        Set<Integer> uniqueCounts = new HashSet<>(countMap.values());
+        List<Integer> sortedCounts = new ArrayList<>(uniqueCounts);
+        Collections.sort(sortedCounts);
+        
+        if (sortedCounts.size() >= 2) {
+            int secondMinCount = sortedCounts.get(1);
+            for (Map.Entry<Integer, Integer> entry : countMap.entrySet()) {
+                if (entry.getValue() == secondMinCount) {
+                    result.add(entry.getKey());
+                }
+            }
+        }
+        
+        return result;
+    }
+    
+    /**
+     * 从给定号码列表中找到一对连续的号码
+     * 
+     * @param candidates 候选号码列表
+     * @param excluded 要排除的号码列表
+     * @return 连续号码对，如果找不到则返回空列表或单个号码
+     */
+    private static List<Integer> findConsecutivePair(List<Integer> candidates, List<Integer> excluded) {
+        List<Integer> result = new ArrayList<>();
+        List<Integer> available = new ArrayList<>();
+        
+        // 过滤掉已排除的号码
+        for (int num : candidates) {
+            if (!excluded.contains(num)) {
+                available.add(num);
+            }
+        }
+        
+        Collections.sort(available);
+        
+        // 寻找所有连续的号码对
+        List<List<Integer>> consecutivePairs = new ArrayList<>();
+        for (int i = 0; i < available.size() - 1; i++) {
+            if (available.get(i + 1) - available.get(i) == 1) {
+                List<Integer> pair = new ArrayList<>();
+                pair.add(available.get(i));
+                pair.add(available.get(i + 1));
+                consecutivePairs.add(pair);
+            }
+        }
+        
+        // 随机选择一组连续号码
+        if (!consecutivePairs.isEmpty()) {
+            Random rand = new Random();
+            List<Integer> selectedPair = consecutivePairs.get(rand.nextInt(consecutivePairs.size()));
+            result.addAll(selectedPair);
+            return result;
+        }
+        
+        // 如果没有找到连续对，则随机选择2个号码
+        Collections.shuffle(available);
+        for (int i = 0; i < Math.min(2, available.size()); i++) {
+            result.add(available.get(i));
+        }
+        
         return result;
     }
 }

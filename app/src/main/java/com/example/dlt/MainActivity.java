@@ -88,10 +88,6 @@ public class MainActivity extends AppCompatActivity {
     private static final String KEY_GENERATED_NUMBERS = "generated_numbers";   // 生成号码存储键
     private static final String KEY_GENERATION_RECORDS = "generation_records"; // 生成记录存储键
     private static final String KEY_CONFIRMED_NUMBERS = "confirmed_numbers";   // 确认号码存储键
-    private static final String KEY_GROUP_SCORES = "group_scores";             // 各组得分存储键
-    private static final String KEY_GROUP_MAX_PRIZE = "group_max_prize";       // 各组最大中奖等级存储键
-    private static final String KEY_GROUP_MAX_PRIZE_COUNT = "group_max_prize_count"; // 各组最高奖中奖次数存储键
-    private static final String KEY_BLOCKED_RULES = "blocked_rules";           // 屏蔽规则存储键
     
     // 业务逻辑相关常量
     private static final int MAX_HISTORY = 10;                    // 最大历史记录数（用于界面显示）
@@ -129,11 +125,8 @@ public class MainActivity extends AppCompatActivity {
     private String confirmedNumbers = "";                           // 当前确认的预测号码
     private boolean isNumbersConfirmed = false;                    // 号码确认状态标记
     
-    // 得分统计相关
-    private Map<Integer, Integer> groupScores = new HashMap<>();   // 各组算法的得分记录（组号->得分）
-    private Map<Integer, Integer> groupMaxPrize = new HashMap<>(); // 记录每组的最大中奖等级
-    private Map<Integer, Integer> groupMaxPrizeCount = new HashMap<>(); // 记录每组最高奖的中奖次数
-    private Set<Integer> blockedRules = new HashSet<>();          // 记录被屏蔽的规则编号
+    // 分数管理器
+    private ScoreManager scoreManager;
     
     // 文件操作相关
     private ActivityResultLauncher<String> importLauncher;         // CSV文件导入启动器
@@ -158,7 +151,8 @@ public class MainActivity extends AppCompatActivity {
             "第9组：基于最近10期开奖数据，模拟神经网络前向传播过程，通过隐藏层非线性变换，计算各号码出现概率并加权随机生成",
             "第10组：分析号码出现的时间周期性规律，结合季节性趋势、长期趋势和冷号权重，基于时间序列模型预测最可能的号码组合",
             "第11组：完全随机算法，不依赖任何历史数据，纯随机从前区1-35中选5个号码，从后区1-12中选2个号码",
-            "第12组：基于上一期连号检测的智能预测算法。前区规则：检查上一期是否有连号，若有则从未出现和最少出现的号码中选择；若无则从未出现的号码中选1个，从最少出现的号码中选2个，从第二少出现的号码中选2个连续号码。后区规则：从未出现和最少出现的号码中各选1个，且不能是上一期出现的号码。"
+            "第12组：基于上一期连号检测的智能预测算法。前区规则：检查上一期是否有连号，若有则仍未出现和最少出现的号码中选择；若无则仍未出现的号码中选1个，从最少出现的号码中选2个，从第二少出现的号码中选2个连续号码。后区规则：从未出现和最少出现的号码中各1个，且不能是上一期出现的号码。",
+            "第13组：统计前12组已生成的号码，前区随机选取5个已出现号码中出现次数最少的号码，如果不足5个则随机选取出现次数第二少的号码补足；后区随机选取2个已出现号码中出现次数最少的号码，如果不足2个则随机选取出现次数第二少的号码补足。注：只统计已出现的号码，未出现的号码不计入出现次数最少的统计范围。"
     };
 
     /**
@@ -210,12 +204,11 @@ public class MainActivity extends AppCompatActivity {
         // 第三阶段：数据加载和状态恢复
         // =============================================================================
         
+        scoreManager = new ScoreManager(this);  // 初始化分数管理器
         loadHistory();              // 从本地存储加载历史开奖数据
         loadGeneratedNumbers();     // 加载上次生成的号码数据
         loadGenerationRecords();    // 加载历史生成记录
         loadConfirmedNumbers();     // 加载已确认的预测号码
-        loadGroupScores();          // 加载各组算法的得分数据
-        loadBlockedRules();         // 加载被屏蔽的规则
         
         updateHistoryView();        // 更新历史数据显示区域
         updateButtonStates();       // 更新按钮状态和可用性
@@ -428,8 +421,8 @@ public class MainActivity extends AppCompatActivity {
             return;
         }
         
-        // 调用核心算法引擎：使用 NumberGenerator 生成所有10组号码，传入屏蔽规则
-        NumberGenerator.GenerationResult result = NumberGenerator.generateAllNumbers(historyList, blockedRules);
+        // 调用核心算法引擎：使用 NumberGenerator 生成所有13组号码，传入屏蔽规则
+        NumberGenerator.GenerationResult result = NumberGenerator.generateAllNumbers(historyList, scoreManager.getBlockedRules());
         String generatedText = result.getDisplayText();
         
         // 显示生成结果在界面上
@@ -482,7 +475,7 @@ public class MainActivity extends AppCompatActivity {
     private void showGroupRuleDialog() {
         String[] items = new String[GROUP_RULES.length];
         for (int i = 0; i < GROUP_RULES.length; i++) {
-            String blockedTag = blockedRules.contains(i + 1) ? "[屏蔽] " : "";
+            String blockedTag = scoreManager.isRuleBlocked(i + 1) ? "[屏蔽] " : "";
             items[i] = blockedTag + "第" + (i + 1) + "组规则：\n" + GROUP_RULES[i];
         }
         AlertDialog.Builder builder = new AlertDialog.Builder(this, android.R.style.Theme_Material_Dialog_Alert);
@@ -499,7 +492,7 @@ public class MainActivity extends AppCompatActivity {
         
     // 显示规则操作对话框
     private void showRuleActionDialog(int ruleNumber) {
-        boolean isBlocked = blockedRules.contains(ruleNumber);
+        boolean isBlocked = scoreManager.isRuleBlocked(ruleNumber);
         String actionText = isBlocked ? "取消屏蔽" : "屏蔽该规则";
         String statusText = isBlocked ? "当前状态：已屏蔽" : "当前状态：正常";
             
@@ -513,13 +506,12 @@ public class MainActivity extends AppCompatActivity {
                     @Override
                     public void onClick(DialogInterface dialog, int which) {
                         if (isBlocked) {
-                            blockedRules.remove(ruleNumber);
+                            scoreManager.unblockRule(ruleNumber);
                             Toast.makeText(MainActivity.this, String.format("第%d组规则已取消屏蔽", ruleNumber), Toast.LENGTH_SHORT).show();
                         } else {
-                            blockedRules.add(ruleNumber);
+                            scoreManager.blockRule(ruleNumber);
                             Toast.makeText(MainActivity.this, String.format("第%d组规则已屏蔽", ruleNumber), Toast.LENGTH_SHORT).show();
                         }
-                        saveBlockedRules();
                         // 如果有确认号码，提示用户重新确认
                         if (isNumbersConfirmed) {
                             new AlertDialog.Builder(MainActivity.this, android.R.style.Theme_Material_Dialog_Alert)
@@ -1133,143 +1125,7 @@ public class MainActivity extends AppCompatActivity {
                 .show();
     }
     
-    // 加载各组分数
-    private void loadGroupScores() {
-        groupScores.clear();
-        groupMaxPrize.clear();
-        groupMaxPrizeCount.clear();
-        SharedPreferences prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
-        
-        // 加载分数
-        String scores = prefs.getString(KEY_GROUP_SCORES, "");
-        if (!TextUtils.isEmpty(scores)) {
-            String[] scoreArray = scores.split(",");
-            for (String scoreEntry : scoreArray) {
-                String[] parts = scoreEntry.split(":");
-                if (parts.length == 2) {
-                    try {
-                        int groupNum = Integer.parseInt(parts[0]);
-                        int score = Integer.parseInt(parts[1]);
-                        groupScores.put(groupNum, score);
-                    } catch (Exception e) {
-                        // 忽略解析错误
-                    }
-                }
-            }
-        }
-        
-        // 加载最大中奖等级
-        String maxPrizes = prefs.getString(KEY_GROUP_MAX_PRIZE, "");
-        if (!TextUtils.isEmpty(maxPrizes)) {
-            String[] prizeArray = maxPrizes.split(",");
-            for (String prizeEntry : prizeArray) {
-                String[] parts = prizeEntry.split(":");
-                if (parts.length == 2) {
-                    try {
-                        int groupNum = Integer.parseInt(parts[0]);
-                        int prize = Integer.parseInt(parts[1]);
-                        groupMaxPrize.put(groupNum, prize);
-                    } catch (Exception e) {
-                        // 忽略解析错误
-                    }
-                }
-            }
-        }
-        
-        // 加载最高奖中奖次数
-        String maxPrizeCounts = prefs.getString(KEY_GROUP_MAX_PRIZE_COUNT, "");
-        if (!TextUtils.isEmpty(maxPrizeCounts)) {
-            String[] countArray = maxPrizeCounts.split(",");
-            for (String countEntry : countArray) {
-                String[] parts = countEntry.split(":");
-                if (parts.length == 2) {
-                    try {
-                        int groupNum = Integer.parseInt(parts[0]);
-                        int count = Integer.parseInt(parts[1]);
-                        groupMaxPrizeCount.put(groupNum, count);
-                    } catch (Exception e) {
-                        // 忽略解析错误
-                    }
-                }
-            }
-        }
-        
-        // 初始化所有组的分数为0（如果没有记录）
-        for (int i = 1; i <= 12; i++) {
-            if (!groupScores.containsKey(i)) {
-                groupScores.put(i, 0);
-            }
-        }
-    }
-    
-    // 保存各组分数
-    private void saveGroupScores() {
-        SharedPreferences prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
-        
-        // 保存分数
-        StringBuilder sb = new StringBuilder();
-        for (int i = 1; i <= 12; i++) {
-            if (i > 1) sb.append(",");
-            sb.append(i).append(":").append(groupScores.getOrDefault(i, 0));
-        }
-        
-        // 保存最大中奖等级
-        StringBuilder sbPrize = new StringBuilder();
-        boolean first = true;
-        for (Map.Entry<Integer, Integer> entry : groupMaxPrize.entrySet()) {
-            if (!first) sbPrize.append(",");
-            sbPrize.append(entry.getKey()).append(":").append(entry.getValue());
-            first = false;
-        }
-        
-        // 保存最高奖中奖次数
-        StringBuilder sbCount = new StringBuilder();
-        boolean firstCount = true;
-        for (Map.Entry<Integer, Integer> entry : groupMaxPrizeCount.entrySet()) {
-            if (!firstCount) sbCount.append(",");
-            sbCount.append(entry.getKey()).append(":").append(entry.getValue());
-            firstCount = false;
-        }
-        
-        prefs.edit()
-            .putString(KEY_GROUP_SCORES, sb.toString())
-            .putString(KEY_GROUP_MAX_PRIZE, sbPrize.toString())
-            .putString(KEY_GROUP_MAX_PRIZE_COUNT, sbCount.toString())
-            .apply();
-    }
-    
-    // 加载被屏蔽的规则
-    private void loadBlockedRules() {
-        blockedRules.clear();
-        SharedPreferences prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
-        String blocked = prefs.getString(KEY_BLOCKED_RULES, "");
-        if (!TextUtils.isEmpty(blocked)) {
-            String[] ruleArray = blocked.split(",");
-            for (String ruleStr : ruleArray) {
-                try {
-                    int ruleNum = Integer.parseInt(ruleStr.trim());
-                    if (ruleNum >= 1 && ruleNum <= 12) {
-                        blockedRules.add(ruleNum);
-                    }
-                } catch (Exception e) {
-                    // 忽略解析错误
-                }
-            }
-        }
-    }
-    
-    // 保存被屏蔽的规则
-    private void saveBlockedRules() {
-        SharedPreferences prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
-        StringBuilder sb = new StringBuilder();
-        boolean first = true;
-        for (int ruleNum : blockedRules) {
-            if (!first) sb.append(",");
-            sb.append(ruleNum);
-            first = false;
-        }
-        prefs.edit().putString(KEY_BLOCKED_RULES, sb.toString()).apply();
-    }
+
     
     // 显示各组分数对话框
     private void showGroupScoresDialog() {
@@ -1278,20 +1134,27 @@ public class MainActivity extends AppCompatActivity {
             return;
         }
         
-        StringBuilder sb = new StringBuilder();
-        sb.append("各组分数情况：\n\n");
-        for (int i = 1; i <= 12; i++) {
-            int score = groupScores.getOrDefault(i, 0);
-            int maxPrize = groupMaxPrize.getOrDefault(i, 0);
-            int prizeCount = groupMaxPrizeCount.getOrDefault(i, 0);
-            String prizeText = maxPrize > 0 ? getPrizeText(maxPrize) : "无";
+        String scoresInfo = scoreManager.getAllScoresInfo();
+        
+        // 创建列表项
+        String[] items = new String[13];
+        for (int i = 1; i <= 13; i++) {
+            int score = scoreManager.getGroupScore(i);
+            int maxPrize = scoreManager.getGroupMaxPrize(i);
+            int prizeCount = scoreManager.getGroupMaxPrizeCount(i);
+            String prizeText = maxPrize > 0 ? ScoreManager.getPrizeText(maxPrize) : "无";
             String countText = prizeCount > 0 ? "（" + prizeCount + "次）" : "";
-            sb.append(String.format("第%d组：%d分 | 最高：%s%s\n", i, score, prizeText, countText));
+            items[i - 1] = String.format("第%d组：%d分 | 最高：%s%s", i, score, prizeText, countText);
         }
         
         AlertDialog.Builder builder = new AlertDialog.Builder(this, android.R.style.Theme_Material_Dialog_Alert);
-        builder.setTitle("各组分数")
-                .setMessage(sb.toString())
+        builder.setTitle("各组分数\n\n" + scoresInfo.split("\n")[0]) // 显示总分数
+                .setItems(items, new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialog, int which) {
+                        showGroupDetailDialog(which + 1);
+                    }
+                })
                 .setPositiveButton("清空分数", new DialogInterface.OnClickListener() {
                     @Override
                     public void onClick(DialogInterface dialog, int which) {
@@ -1299,6 +1162,67 @@ public class MainActivity extends AppCompatActivity {
                     }
                 })
                 .setNegativeButton("关闭", null)
+                .show();
+    }
+    
+    // 显示某一组的详细中奖历史
+    private void showGroupDetailDialog(int groupNum) {
+        List<ScoreManager.PrizeRecord> history = scoreManager.getGroupPrizeHistory(groupNum);
+        
+        StringBuilder sb = new StringBuilder();
+        sb.append("第").append(groupNum).append("组中奖历史\n\n");
+        
+        int score = scoreManager.getGroupScore(groupNum);
+        int maxPrize = scoreManager.getGroupMaxPrize(groupNum);
+        int prizeCount = scoreManager.getGroupMaxPrizeCount(groupNum);
+        
+        sb.append("当前分数：").append(score).append("分\n");
+        if (maxPrize > 0) {
+            sb.append("最高奖：").append(ScoreManager.getPrizeText(maxPrize));
+            if (prizeCount > 0) {
+                sb.append("（").append(prizeCount).append("次）");
+            }
+            sb.append("\n");
+        }
+        
+        sb.append("\n中奖记录：\n");
+        
+        if (history.isEmpty()) {
+            sb.append("暂无中奖记录");
+        } else {
+            // 按等级分组统计
+            Map<Integer, List<String>> prizeGroups = new HashMap<>();
+            for (ScoreManager.PrizeRecord record : history) {
+                int level = record.getPrizeLevel();
+                if (!prizeGroups.containsKey(level)) {
+                    prizeGroups.put(level, new ArrayList<>());
+                }
+                prizeGroups.get(level).add(record.getIssueNumber());
+            }
+            
+            // 按等级排序显示
+            List<Integer> levels = new ArrayList<>(prizeGroups.keySet());
+            Collections.sort(levels);
+            
+            for (int level : levels) {
+                List<String> issues = prizeGroups.get(level);
+                sb.append("\n").append(ScoreManager.getPrizeText(level)).append("（").append(issues.size()).append("次）：\n");
+                for (String issue : issues) {
+                    sb.append("  期号：").append(issue).append("\n");
+                }
+            }
+        }
+        
+        AlertDialog.Builder builder = new AlertDialog.Builder(this, android.R.style.Theme_Material_Dialog_Alert);
+        builder.setTitle("第" + groupNum + "组详情")
+                .setMessage(sb.toString())
+                .setNegativeButton("返回", new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialog, int which) {
+                        dialog.dismiss();
+                        showGroupScoresDialog(); // 返回分数列表
+                    }
+                })
                 .show();
     }
     
@@ -1310,14 +1234,7 @@ public class MainActivity extends AppCompatActivity {
                 .setPositiveButton("确定", new DialogInterface.OnClickListener() {
                     @Override
                     public void onClick(DialogInterface dialog, int which) {
-                        for (int i = 1; i <= 12; i++) {
-                            groupScores.put(i, 0);
-                            groupMaxPrize.remove(i);  // 同时清空最大中奖等级记录
-                            groupMaxPrizeCount.remove(i);  // 清空中奖次数记录
-                        }
-                        blockedRules.clear();  // 清空屏蔽规则
-                        saveBlockedRules();    // 保存屏蔽规则状态
-                        saveGroupScores();
+                        scoreManager.clearAllScores();
                         Toast.makeText(MainActivity.this, "已清空所有分数", Toast.LENGTH_SHORT).show();
                     }
                 })
@@ -1331,126 +1248,18 @@ public class MainActivity extends AppCompatActivity {
             return;
         }
         
-        // 解析确认的号码（10组）
-        List<List<Integer>> confirmedFrontGroups = new ArrayList<>();
-        List<List<Integer>> confirmedBackGroups = new ArrayList<>();
+        ScoreManager.WinningResult result = scoreManager.calculateWinningScores(confirmedNumbers, newEntry);
         
-        String[] lines = confirmedNumbers.split("\n");
-        for (String line : lines) {
-            // 跳过被屏蔽的组
-            if (line.contains("[已屏蔽]")) {
-                confirmedFrontGroups.add(new ArrayList<>());
-                confirmedBackGroups.add(new ArrayList<>());
-                continue;
-            }
-            
-            if (line.contains("第") && line.contains("组") && line.contains("前区") && line.contains("后区")) {
-                try {
-                    // 解析格式：第X组：前区[1, 2, 3, 4, 5] 后区[1, 2]
-                    int frontStart = line.indexOf("前区") + 2;
-                    int frontEnd = line.indexOf("后区");
-                    int backStart = line.indexOf("后区") + 2;
-                    
-                    if (frontStart > 1 && frontEnd > frontStart && backStart > 1) {
-                        String frontStr = line.substring(frontStart, frontEnd).trim();
-                        String backStr = line.substring(backStart).trim();
-                        
-                        // 移除方括号和处理数字列表
-                        frontStr = frontStr.replaceAll("[\\[\\]]", "").trim();
-                        backStr = backStr.replaceAll("[\\[\\]]", "").trim();
-                        
-                        List<Integer> frontNumbers = parseNumberString(frontStr);
-                        List<Integer> backNumbers = parseNumberString(backStr);
-                        
-                        if (frontNumbers.size() == 5 && backNumbers.size() == 2) {
-                            confirmedFrontGroups.add(frontNumbers);
-                            confirmedBackGroups.add(backNumbers);
-                        }
-                    }
-                } catch (Exception e) {
-                    // 忽略解析错误，记录调试信息
-                    android.util.Log.d("DLT_DEBUG", "解析行失败: " + line + ", 错误: " + e.getMessage());
-                }
-            }
-        }
-        
-        // 添加调试信息
-        android.util.Log.d("DLT_DEBUG", "解析结果 - 前区组数: " + confirmedFrontGroups.size() + ", 后区组数: " + confirmedBackGroups.size());
-        
-        if (confirmedFrontGroups.size() != 12 || confirmedBackGroups.size() != 12) {
-            String debugInfo = String.format("确认号码格式错误，无法进行计算。解析到前区%d组，后区%d组（期望各12组）", 
-                confirmedFrontGroups.size(), confirmedBackGroups.size());
-            Toast.makeText(this, debugInfo, Toast.LENGTH_LONG).show();
-            android.util.Log.e("DLT_ERROR", debugInfo);
-            android.util.Log.e("DLT_ERROR", "确认号码内容：\n" + confirmedNumbers);
+        if (result == null || !result.isSuccess()) {
+            String errorMsg = result != null ? result.getMessage() : "计算中奖分数失败";
+            Toast.makeText(this, errorMsg, Toast.LENGTH_LONG).show();
             return;
         }
-        
-        // 获取开奖号码
-        List<Integer> winningFront = newEntry.getFrontNumbers();
-        List<Integer> winningBack = newEntry.getBackNumbers();
-        
-        int totalScoreChange = 0;
-        StringBuilder resultMessage = new StringBuilder();
-        resultMessage.append("中奖结果：\n\n");
-        
-        // 对比每一组（跳过被屏蔽的规则）
-        for (int groupIndex = 0; groupIndex < 12; groupIndex++) {
-            if (blockedRules.contains(groupIndex + 1)) {
-                // 被屏蔽的规则不参与中奖计算
-                continue;
-            }
-            
-            List<Integer> groupFront = confirmedFrontGroups.get(groupIndex);
-            List<Integer> groupBack = confirmedBackGroups.get(groupIndex);
-            
-            // 检查是否为空的屏蔽组（防止错误数据）
-            if (groupFront.isEmpty() || groupBack.isEmpty()) {
-                continue;
-            }
-            
-            int frontMatches = countMatches(groupFront, winningFront);
-            int backMatches = countMatches(groupBack, winningBack);
-            
-            int prizeLevel = determinePrizeLevel(frontMatches, backMatches);
-            int scoreChange = getScoreChange(prizeLevel);
-            
-            // 更新分数
-            int currentScore = groupScores.getOrDefault(groupIndex + 1, 0);
-            groupScores.put(groupIndex + 1, currentScore + scoreChange);
-            totalScoreChange += scoreChange;
-            
-            // 更新最大中奖等级（数字越小等级越高）
-            if (prizeLevel > 0) {
-                int currentMaxPrize = groupMaxPrize.getOrDefault(groupIndex + 1, Integer.MAX_VALUE);
-                if (prizeLevel < currentMaxPrize) {
-                    // 更新最高奖等级和中奖次数
-                    groupMaxPrize.put(groupIndex + 1, prizeLevel);
-                    groupMaxPrizeCount.put(groupIndex + 1, 1); // 新的最高奖，次数重置为1
-                } else if (prizeLevel == currentMaxPrize) {
-                    // 相同的最高奖等级，中奖次数+1
-                    int currentCount = groupMaxPrizeCount.getOrDefault(groupIndex + 1, 0);
-                    groupMaxPrizeCount.put(groupIndex + 1, currentCount + 1);
-                }
-            }
-            
-            // 构建结果信息
-            String prizeText = getPrizeText(prizeLevel);
-            String changeText = scoreChange > 0 ? "+" + scoreChange : String.valueOf(scoreChange);
-            resultMessage.append(String.format("第%d组：%s (%s分)\n", 
-                groupIndex + 1, prizeText, changeText));
-        }
-        
-        resultMessage.append(String.format("\n本次总计：%s%d分", 
-            totalScoreChange >= 0 ? "+" : "", totalScoreChange));
-        
-        // 保存分数
-        saveGroupScores();
         
         // 显示结果
         AlertDialog.Builder builder = new AlertDialog.Builder(this, android.R.style.Theme_Material_Dialog_Alert);
         builder.setTitle("中奖结果")
-                .setMessage(resultMessage.toString())
+                .setMessage(result.getMessage())
                 .setPositiveButton("查看分数", new DialogInterface.OnClickListener() {
                     @Override
                     public void onClick(DialogInterface dialog, int which) {
@@ -1461,82 +1270,5 @@ public class MainActivity extends AppCompatActivity {
                 .show();
     }
     
-    // 解析号码字符串
-    private List<Integer> parseNumberString(String numberStr) {
-        List<Integer> numbers = new ArrayList<>();
-        if (TextUtils.isEmpty(numberStr)) return numbers;
-        
-        // 处理多种分隔符：逗号、空格、混合使用
-        String[] parts = numberStr.split("[,\\s]+");
-        for (String part : parts) {
-            try {
-                String trimmed = part.trim();
-                if (!TextUtils.isEmpty(trimmed)) {
-                    numbers.add(Integer.parseInt(trimmed));
-                }
-            } catch (Exception e) {
-                // 忽略解析错误
-                android.util.Log.d("DLT_DEBUG", "无法解析数字: " + part);
-            }
-        }
-        return numbers;
-    }
-    
-    // 计算匹配数量
-    private int countMatches(List<Integer> group, List<Integer> winning) {
-        int matches = 0;
-        for (int number : group) {
-            if (winning.contains(number)) {
-                matches++;
-            }
-        }
-        return matches;
-    }
-    
-    // 判断奖级
-    private int determinePrizeLevel(int frontMatches, int backMatches) {
-        if (frontMatches == 5 && backMatches == 2) return 1; // 一等奖
-        if (frontMatches == 5 && backMatches == 1) return 2; // 二等奖
-        if (frontMatches == 5 && backMatches == 0) return 3; // 三等奖
-        if (frontMatches == 4 && backMatches == 2) return 4; // 四等奖
-        if (frontMatches == 4 && backMatches == 1) return 5; // 五等奖
-        if (frontMatches == 3 && backMatches == 2) return 6; // 六等奖
-        if (frontMatches == 4 && backMatches == 0) return 7; // 七等奖
-        if ((frontMatches == 3 && backMatches == 1) || (frontMatches == 2 && backMatches == 2)) return 8; // 八等奖
-        if (frontMatches == 3 || (frontMatches == 1 && backMatches == 2) || 
-            (frontMatches == 2 && backMatches == 1) || (frontMatches == 0 && backMatches == 2)) return 9; // 九等奖
-        return 0; // 未中奖
-    }
-    
-    // 获取分数变化
-    private int getScoreChange(int prizeLevel) {
-        switch (prizeLevel) {
-            case 1: return 9999998;  // 一等奖
-            case 2: return 99998;  // 二等奖
-            case 3: return 9998;  // 三等奖
-            case 4: return 2998;  // 四等奖
-            case 5: return 298;  // 五等奖
-            case 6: return 198;  // 六等奖
-            case 7: return 98;  // 七等奖
-            case 8: return 13;  // 八等奖
-            case 9: return 3;  // 九等奖
-            default: return -2; // 未中奖
-        }
-    }
-    
-    // 获取奖级文本
-    private String getPrizeText(int prizeLevel) {
-        switch (prizeLevel) {
-            case 1: return "一等奖";
-            case 2: return "二等奖";
-            case 3: return "三等奖";
-            case 4: return "四等奖";
-            case 5: return "五等奖";
-            case 6: return "六等奖";
-            case 7: return "七等奖";
-            case 8: return "八等奖";
-            case 9: return "九等奖";
-            default: return "未中奖";
-        }
-    }
+
 }

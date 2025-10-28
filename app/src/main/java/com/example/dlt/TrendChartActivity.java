@@ -12,6 +12,7 @@ import android.view.View;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
+import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.Spinner;
 import android.widget.Toast;
@@ -26,12 +27,15 @@ public class TrendChartActivity extends AppCompatActivity {
     private static final String KEY_HISTORY = "history";
     private static final String KEY_GENERATED_NUMBERS = "generated_numbers";
 
-    private Spinner spinnerChartType, spinnerPeriods;
+    private Spinner spinnerChartType;
+    private EditText etPeriods;
+    private Button btnApplyPeriods;
     private LinearLayout containerChart;
     private Button btnBack, btnExportChart, btnSwitchAxis;
     private List<LotteryEntry> historyList = new ArrayList<>();
     private String lastGeneratedNumbers = "";
     private boolean isAxisSwitched = false; // 坐标转换状态
+    private int currentPeriods = 10; // 当前期数，默认10期
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -47,11 +51,15 @@ public class TrendChartActivity extends AppCompatActivity {
 
     private void initViews() {
         spinnerChartType = findViewById(R.id.spinner_chart_type);
-        spinnerPeriods = findViewById(R.id.spinner_periods);
+        etPeriods = findViewById(R.id.et_periods);
+        btnApplyPeriods = findViewById(R.id.btn_apply_periods);
         containerChart = findViewById(R.id.container_chart);
         btnBack = findViewById(R.id.btn_back);
         btnExportChart = findViewById(R.id.btn_export_chart);
         btnSwitchAxis = findViewById(R.id.btn_switch_axis);
+        
+        // 设置默认期数
+        etPeriods.setText(String.valueOf(currentPeriods));
     }
 
     private void loadData() {
@@ -127,18 +135,9 @@ public class TrendChartActivity extends AppCompatActivity {
             android.R.layout.simple_spinner_item, chartTypes);
         chartTypeAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
         spinnerChartType.setAdapter(chartTypeAdapter);
-
-        // 期数选择器
-        String[] periods = {"最近5期", "最近10期", "最近15期", "最近20期", "最近25期", 
-                            "最近30期", "最近35期", "最近40期", "最近45期", "最近50期", "全部"};
-        ArrayAdapter<String> periodsAdapter = new ArrayAdapter<>(this, 
-            android.R.layout.simple_spinner_item, periods);
-        periodsAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
-        spinnerPeriods.setAdapter(periodsAdapter);
         
         // 设置默认选择
         spinnerChartType.setSelection(0);
-        spinnerPeriods.setSelection(1); // 默认选择最近10期
     }
 
     private void setupListeners() {
@@ -152,14 +151,30 @@ public class TrendChartActivity extends AppCompatActivity {
             public void onNothingSelected(AdapterView<?> parent) {}
         });
 
-        spinnerPeriods.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
-            @Override
-            public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
-                drawChart();
+        // 期数确定按钮监听
+        btnApplyPeriods.setOnClickListener(v -> {
+            String periodsStr = etPeriods.getText().toString().trim();
+            if (TextUtils.isEmpty(periodsStr)) {
+                Toast.makeText(this, "请输入期数", Toast.LENGTH_SHORT).show();
+                return;
             }
-
-            @Override
-            public void onNothingSelected(AdapterView<?> parent) {}
+            
+            try {
+                int periods = Integer.parseInt(periodsStr);
+                if (periods <= 0) {
+                    Toast.makeText(this, "期数必须大于0", Toast.LENGTH_SHORT).show();
+                    return;
+                }
+                if (periods > 9999) {
+                    Toast.makeText(this, "期数不能超过9999", Toast.LENGTH_SHORT).show();
+                    return;
+                }
+                currentPeriods = periods;
+                drawChart();
+                Toast.makeText(this, "已设置为最近" + periods + "期", Toast.LENGTH_SHORT).show();
+            } catch (NumberFormatException e) {
+                Toast.makeText(this, "请输入有效的数字", Toast.LENGTH_SHORT).show();
+            }
         });
 
         btnBack.setOnClickListener(v -> finish());
@@ -181,11 +196,10 @@ public class TrendChartActivity extends AppCompatActivity {
         addAxisStatusIndicator();
         
         int chartType = spinnerChartType.getSelectedItemPosition();
-        int periodType = spinnerPeriods.getSelectedItemPosition();
         
         if (chartType == 0) {
             // 历史开奖走势图
-            drawHistoryTrendChart(periodType);
+            drawHistoryTrendChart(currentPeriods);
         } else {
             // 号码生成走势图
             drawGeneratedTrendChart();
@@ -206,13 +220,13 @@ public class TrendChartActivity extends AppCompatActivity {
         containerChart.addView(statusView);
     }
 
-    private void drawHistoryTrendChart(int periodType) {
+    private void drawHistoryTrendChart(int periods) {
         if (historyList.isEmpty()) {
             addEmptyView("暂无历史数据");
             return;
         }
 
-        int maxPeriods = getMaxPeriods(periodType);
+        int maxPeriods = periods;
         int startIndex = Math.max(0, historyList.size() - maxPeriods);
         List<LotteryEntry> displayList = historyList.subList(startIndex, historyList.size());
         
@@ -496,23 +510,6 @@ public class TrendChartActivity extends AppCompatActivity {
         }
         
         return result;
-    }
-
-    private int getMaxPeriods(int periodType) {
-        switch (periodType) {
-            case 0: return 5;   // 最近5期
-            case 1: return 10;  // 最近10期
-            case 2: return 15;  // 最近15期
-            case 3: return 20;  // 最近20期
-            case 4: return 25;  // 最近25期
-            case 5: return 30;  // 最近30期
-            case 6: return 35;  // 最近35期
-            case 7: return 40;  // 最近40期
-            case 8: return 45;  // 最近45期
-            case 9: return 50;  // 最近50期
-            case 10: return Integer.MAX_VALUE; // 全部
-            default: return 10;
-        }
     }
 
     private void addChartTitle(String title) {

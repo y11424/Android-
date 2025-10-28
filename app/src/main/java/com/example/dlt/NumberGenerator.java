@@ -12,19 +12,20 @@ import java.util.Set;
 
 /**
  * 彩票号码生成器类
- * 负责实现12种不同算法的彩票号码生成逻辑
+ * 负责实现13种不同算法的彩票号码生成逻辑
  * 
  * 包含以下算法：
  * 1-6组：基于近10期历史数据的传统算法
  * 7-10组：基于所有历史数据的高级机器学习算法
  * 11组：完全随机算法
  * 12组：基于连号检测的智能预测算法
+ * 13组：基于前12组结果的反向频率算法
  */
 public class NumberGenerator {
     
     /**
      * 生成结果封装类
-     * 用于封装十二组号码生成结果的数据结构
+     * 用于封装十三组号码生成结果的数据结构
      */
     public static class GenerationResult {
         private String displayText;          // 用于界面显示的格式化文本
@@ -50,7 +51,7 @@ public class NumberGenerator {
     }
     
     /**
-     * 主入口方法：生成所有12组号码
+     * 主入口方法：生成所有13组号码
      * 
      * 实现逻辑：
      * 1. 首先验证历史数据是否足够
@@ -59,10 +60,11 @@ public class NumberGenerator {
      * 4. 按顺序生成后4组（机器学习算法）
      * 5. 按顺序生成第11组（完全随机算法）
      * 6. 按顺序生成第12组（连号检测算法）
-     * 7. 格式化输出结果
+     * 7. 按顺序生成第13组（反向频率算法）
+     * 8. 格式化输出结果
      * 
      * @param historyList 历史开奖数据列表
-     * @return GenerationResult 包含所有12组号码的结果对象
+     * @return GenerationResult 包含所有13组号码的结果对象
      */
     public static GenerationResult generateAllNumbers(List<LotteryEntry> historyList, Set<Integer> blockedRules) {
         // 第一步：过滤掉被屏蔽的期数，确保算法只使用有效数据
@@ -177,6 +179,15 @@ public class NumberGenerator {
             resultBack.add(new ArrayList<>());
         }
         
+        // 第13组：反向频率算法 - 选择前12组中出现次数最少的号码
+        if (!blockedRules.contains(13)) {
+            resultFront.add(reverseFrontNumbers(resultFront, blockedRules));
+            resultBack.add(reverseBackNumbers(resultBack, blockedRules));
+        } else {
+            resultFront.add(new ArrayList<>());
+            resultBack.add(new ArrayList<>());
+        }
+        
         // =============================================================================
         // 第四阶段：格式化输出结果
         // =============================================================================
@@ -184,8 +195,8 @@ public class NumberGenerator {
         // 构建用于界面显示的格式化字符串
         StringBuilder sb = new StringBuilder();
         
-        // 显示所有12组（包括被屏蔽的）
-        for (int i = 0; i < 12; i++) {
+        // 显示所有13组（包括被屏蔽的）
+        for (int i = 0; i < 13; i++) {
             if (blockedRules.contains(i + 1)) {
                 sb.append(String.format("第%d组：[已屏蔽] 不生成号码\n", i + 1));
             } else {
@@ -1475,6 +1486,186 @@ public class NumberGenerator {
             result.add(available.get(i));
         }
         
+        return result;
+    }
+    
+    // =============================================================================
+    // 第13组：反向频率算法
+    // =============================================================================
+    
+    /**
+     * 第13组前区号码生成算法 - 反向频率选择
+     * 
+     * 规则：
+     * 统计前12组已生成的号码，随机选取5个出现次数最少的号码（只统计已出现的号码）
+     * 如果出现次数最少的号码不足5个，则随机选取出现次数第二少的号码补足
+     * 
+     * @param generatedFronts 前12组已生成的前区号码列表
+     * @param blockedRules 被屏蔽的规则集合
+     * @return 预测的5个前区号码
+     */
+    private static List<Integer> reverseFrontNumbers(List<List<Integer>> generatedFronts, Set<Integer> blockedRules) {
+        // 统计前12组中每个号码的出现次数（只统计已出现的）
+        Map<Integer, Integer> frontCount = new HashMap<>();
+        
+        // 遍历前12组（0-11索引）
+        for (int i = 0; i < Math.min(12, generatedFronts.size()); i++) {
+            // 跳过被屏蔽的组
+            if (blockedRules.contains(i + 1)) {
+                continue;
+            }
+            
+            List<Integer> numbers = generatedFronts.get(i);
+            for (int num : numbers) {
+                frontCount.put(num, frontCount.getOrDefault(num, 0) + 1);
+            }
+        }
+        
+        // 如果前12组都被屏蔽或没有数据，返回随机号码
+        if (frontCount.isEmpty()) {
+            return generateRandomFrontNumbers();
+        }
+        
+        // 找出所有不同的出现次数并排序（只包含已出现的号码）
+        Set<Integer> uniqueCounts = new HashSet<>(frontCount.values());
+        List<Integer> sortedCounts = new ArrayList<>(uniqueCounts);
+        Collections.sort(sortedCounts);
+        
+        List<Integer> result = new ArrayList<>();
+        Random rand = new Random();
+        
+        // 按出现次数从少到多依次选取号码
+        for (int count : sortedCounts) {
+            if (result.size() >= 5) {
+                break;
+            }
+            
+            // 收集出现次数等于当前count的所有号码
+            List<Integer> candidates = new ArrayList<>();
+            for (Map.Entry<Integer, Integer> entry : frontCount.entrySet()) {
+                if (entry.getValue() == count && !result.contains(entry.getKey())) {
+                    candidates.add(entry.getKey());
+                }
+            }
+            
+            // 随机打乱候选号码
+            Collections.shuffle(candidates, rand);
+            
+            // 从候选中选取需要的数量
+            for (int num : candidates) {
+                if (result.size() >= 5) {
+                    break;
+                }
+                result.add(num);
+            }
+        }
+        
+        // 如果已出现的号码不足5个，从未出现的号码中随机补足
+        if (result.size() < 5) {
+            List<Integer> unused = new ArrayList<>();
+            for (int i = 1; i <= 35; i++) {
+                if (!frontCount.containsKey(i)) {
+                    unused.add(i);
+                }
+            }
+            Collections.shuffle(unused, rand);
+            for (int num : unused) {
+                if (result.size() >= 5) {
+                    break;
+                }
+                result.add(num);
+            }
+        }
+        
+        Collections.sort(result);
+        return result;
+    }
+    
+    /**
+     * 第13组后区号码生成算法 - 反向频率选择
+     * 
+     * 规则：
+     * 统计前12组已生成的号码，随机选取2个出现次数最少的号码（只统计已出现的号码）
+     * 如果出现次数最少的号码不足2个，则随机选取出现次数第二少的号码补足
+     * 
+     * @param generatedBacks 前12组已生成的后区号码列表
+     * @param blockedRules 被屏蔽的规则集合
+     * @return 预测的2个后区号码
+     */
+    private static List<Integer> reverseBackNumbers(List<List<Integer>> generatedBacks, Set<Integer> blockedRules) {
+        // 统计前12组中每个号码的出现次数（只统计已出现的）
+        Map<Integer, Integer> backCount = new HashMap<>();
+        
+        // 遍历前12组（0-11索引）
+        for (int i = 0; i < Math.min(12, generatedBacks.size()); i++) {
+            // 跳过被屏蔽的组
+            if (blockedRules.contains(i + 1)) {
+                continue;
+            }
+            
+            List<Integer> numbers = generatedBacks.get(i);
+            for (int num : numbers) {
+                backCount.put(num, backCount.getOrDefault(num, 0) + 1);
+            }
+        }
+        
+        // 如果前12组都被屏蔽或没有数据，返回随机号码
+        if (backCount.isEmpty()) {
+            return generateRandomBackNumbers();
+        }
+        
+        // 找出所有不同的出现次数并排序（只包含已出现的号码）
+        Set<Integer> uniqueCounts = new HashSet<>(backCount.values());
+        List<Integer> sortedCounts = new ArrayList<>(uniqueCounts);
+        Collections.sort(sortedCounts);
+        
+        List<Integer> result = new ArrayList<>();
+        Random rand = new Random();
+        
+        // 按出现次数从少到多依次选取号码
+        for (int count : sortedCounts) {
+            if (result.size() >= 2) {
+                break;
+            }
+            
+            // 收集出现次数等于当前count的所有号码
+            List<Integer> candidates = new ArrayList<>();
+            for (Map.Entry<Integer, Integer> entry : backCount.entrySet()) {
+                if (entry.getValue() == count && !result.contains(entry.getKey())) {
+                    candidates.add(entry.getKey());
+                }
+            }
+            
+            // 随机打乱候选号码
+            Collections.shuffle(candidates, rand);
+            
+            // 从候选中选取需要的数量
+            for (int num : candidates) {
+                if (result.size() >= 2) {
+                    break;
+                }
+                result.add(num);
+            }
+        }
+        
+        // 如果已出现的号码不足2个，从未出现的号码中随机补足
+        if (result.size() < 2) {
+            List<Integer> unused = new ArrayList<>();
+            for (int i = 1; i <= 12; i++) {
+                if (!backCount.containsKey(i)) {
+                    unused.add(i);
+                }
+            }
+            Collections.shuffle(unused, rand);
+            for (int num : unused) {
+                if (result.size() >= 2) {
+                    break;
+                }
+                result.add(num);
+            }
+        }
+        
+        Collections.sort(result);
         return result;
     }
 }

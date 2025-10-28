@@ -47,12 +47,26 @@
                 android:textSize="10sp"
                 android:layout_marginEnd="1dp"/>
 
-            <Spinner
-                android:id="@+id/spinner_periods"
+            <EditText
+                android:id="@+id/et_periods"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="0.9"
-                android:layout_marginEnd="0dp"/>
+                android:layout_marginEnd="0dp"
+                android:inputType="number"
+                android:hint="输入期数"
+                android:textSize="14sp"
+                android:padding="8dp"
+                android:maxLength="4"/>
+
+            <Button
+                android:id="@+id/btn_apply_periods"
+                android:layout_width="40dp"
+                android:layout_height="30dp"
+                android:text="确定"
+                android:textSize="8sp"
+                android:padding="1dp"
+                android:layout_marginEnd="2dp"/>
 
             <Button
                 android:id="@+id/btn_switch_axis"

@@ -447,6 +447,141 @@ public class TrendChartActivity extends AppCompatActivity {
         containerChart.addView(statsView);
     }
 
+    private void addGeneratedStatisticsInfo(List<LotteryEntry> data) {
+        if (data.isEmpty()) return;
+        
+        // 统计前区号码出现次数
+        int[] frontCount = new int[36];
+        int[] backCount = new int[13];
+        
+        for (LotteryEntry entry : data) {
+            for (int num : entry.getFrontNumbers()) {
+                frontCount[num]++;
+            }
+            for (int num : entry.getBackNumbers()) {
+                backCount[num]++;
+            }
+        }
+        
+        // 找出出现次数最多的号码
+        int maxFront = 0, maxBack = 0;
+        for (int i = 1; i <= 35; i++) {
+            if (frontCount[i] > maxFront) maxFront = frontCount[i];
+        }
+        for (int i = 1; i <= 12; i++) {
+            if (backCount[i] > maxBack) maxBack = backCount[i];
+        }
+        
+        // 找出出现次数最少的号码（排除未出现的）
+        int minFront = Integer.MAX_VALUE, minBack = Integer.MAX_VALUE;
+        for (int i = 1; i <= 35; i++) {
+            if (frontCount[i] > 0 && frontCount[i] < minFront) {
+                minFront = frontCount[i];
+            }
+        }
+        for (int i = 1; i <= 12; i++) {
+            if (backCount[i] > 0 && backCount[i] < minBack) {
+                minBack = backCount[i];
+            }
+        }
+        
+        // 如果所有号码都未出现，则设置最小值为0
+        if (minFront == Integer.MAX_VALUE) minFront = 0;
+        if (minBack == Integer.MAX_VALUE) minBack = 0;
+        
+        // 收集未出现的号码
+        List<Integer> frontNotAppeared = new ArrayList<>();
+        List<Integer> backNotAppeared = new ArrayList<>();
+        
+        for (int i = 1; i <= 35; i++) {
+            if (frontCount[i] == 0) {
+                frontNotAppeared.add(i);
+            }
+        }
+        
+        for (int i = 1; i <= 12; i++) {
+            if (backCount[i] == 0) {
+                backNotAppeared.add(i);
+            }
+        }
+        
+        StringBuilder stats = new StringBuilder();
+        stats.append("统计信息（共").append(data.size()).append("组生成号码）：\n");
+        
+        stats.append("前区出现最多：");
+        for (int i = 1; i <= 35; i++) {
+            if (frontCount[i] == maxFront) {
+                stats.append(i).append("(").append(maxFront).append("次) ");
+            }
+        }
+        stats.append("\n后区出现最多：");
+        for (int i = 1; i <= 12; i++) {
+            if (backCount[i] == maxBack) {
+                stats.append(i).append("(").append(maxBack).append("次) ");
+            }
+        }
+        
+        // 添加出现次数最少的号码信息
+        stats.append("\n前区出现最少：");
+        if (minFront == 0) {
+            stats.append("无（全部号码均未出现）");
+        } else {
+            boolean hasMinFront = false;
+            for (int i = 1; i <= 35; i++) {
+                if (frontCount[i] == minFront) {
+                    if (hasMinFront) stats.append(", ");
+                    stats.append(i).append("(").append(minFront).append("次)");
+                    hasMinFront = true;
+                }
+            }
+        }
+        
+        stats.append("\n后区出现最少：");
+        if (minBack == 0) {
+            stats.append("无（全部号码均未出现）");
+        } else {
+            boolean hasMinBack = false;
+            for (int i = 1; i <= 12; i++) {
+                if (backCount[i] == minBack) {
+                    if (hasMinBack) stats.append(", ");
+                    stats.append(i).append("(").append(minBack).append("次)");
+                    hasMinBack = true;
+                }
+            }
+        }
+        
+        // 添加未出现的号码信息
+        stats.append("\n前区未出现：");
+        if (frontNotAppeared.isEmpty()) {
+            stats.append("无");
+        } else {
+            for (int i = 0; i < frontNotAppeared.size(); i++) {
+                if (i > 0) stats.append(", ");
+                stats.append(frontNotAppeared.get(i));
+            }
+            stats.append(" (共").append(frontNotAppeared.size()).append("个)");
+        }
+        
+        stats.append("\n后区未出现：");
+        if (backNotAppeared.isEmpty()) {
+            stats.append("无");
+        } else {
+            for (int i = 0; i < backNotAppeared.size(); i++) {
+                if (i > 0) stats.append(", ");
+                stats.append(backNotAppeared.get(i));
+            }
+            stats.append(" (共").append(backNotAppeared.size()).append("个)");
+        }
+        
+        android.widget.TextView statsView = new android.widget.TextView(this);
+        statsView.setText(stats.toString());
+        statsView.setTextSize(14);
+        statsView.setTextColor(Color.BLUE);
+        statsView.setPadding(0, 10, 0, 10);
+        statsView.setBackgroundColor(Color.LTGRAY);
+        containerChart.addView(statsView);
+    }
+
     private void drawGeneratedTrendChart() {
         if (TextUtils.isEmpty(lastGeneratedNumbers)) {
             addEmptyView("暂无生成的号码数据");
@@ -459,6 +594,9 @@ public class TrendChartActivity extends AppCompatActivity {
             addEmptyView("生成的号码格式错误，请检查数据格式");
             return;
         }
+
+        // 添加统计信息
+        addGeneratedStatisticsInfo(generatedList);
 
         // 前区走势图
         addChartTitle("生成号码前区走势图");

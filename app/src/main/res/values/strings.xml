@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">大乐透数据管理</string>
+    <string name="app_name">大乐透</string>
     <string name="issue_number_hint">期号（如：25001）</string>
     <string name="draw_date_hint">开奖日期（如：2025-08-11）</string>
     <string name="front_numbers_hint">前区5个号码（空格分隔）</string>

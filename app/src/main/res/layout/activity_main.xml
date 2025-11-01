@@ -225,13 +225,16 @@
                     android:padding="16dp">
 
                     <TextView
+                        android:id="@+id/tv_result_title"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:text="🎯 生成结果"
                         android:textStyle="bold"
                         android:textSize="18sp"
                         android:textColor="@color/primary_text"
-                        android:layout_marginBottom="12dp"/>
+                        android:layout_marginBottom="12dp"
+                        android:clickable="true"
+                        android:focusable="true"/>
 
                     <TextView
                         android:id="@+id/tv_result"

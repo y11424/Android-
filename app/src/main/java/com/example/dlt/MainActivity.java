@@ -10,6 +10,8 @@ import androidx.core.view.WindowInsetsCompat;
 
 // Android UI 组件导入
 import android.content.Context;
+import android.content.ClipboardManager;
+import android.content.ClipData;
 import android.content.SharedPreferences;
 import android.text.Editable;
 import android.text.InputFilter;
@@ -109,6 +111,7 @@ public class MainActivity extends AppCompatActivity {
     // 文本显示组件
     private TextView tvHistory;       // 历史数据显示区域
     private TextView tvResult;        // 生成结果显示区域
+    private TextView tvResultTitle;   // 生成结果标题
     
     // =============================================================================
     // 数据存储区域：应用的所有数据和状态管理
@@ -199,6 +202,7 @@ public class MainActivity extends AppCompatActivity {
         btnViewScores = findViewById(R.id.btn_view_scores);
         tvHistory = findViewById(R.id.tv_history);
         tvResult = findViewById(R.id.tv_result);
+        tvResultTitle = findViewById(R.id.tv_result_title);
         
         // =============================================================================
         // 第三阶段：数据加载和状态恢复
@@ -286,6 +290,14 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onClick(View v) {
                 showHistoryStatsDialog();
+            }
+        });
+        
+        // 结果标题点击复制确认号码
+        tvResultTitle.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                copyConfirmedNumbers();
             }
         });
     }
@@ -1240,6 +1252,23 @@ public class MainActivity extends AppCompatActivity {
                 })
                 .setNegativeButton("取消", null)
                 .show();
+    }
+    
+    // 复制确认的号码到剪贴板
+    private void copyConfirmedNumbers() {
+        if (!isNumbersConfirmed || TextUtils.isEmpty(confirmedNumbers)) {
+            Toast.makeText(this, "暂无已确认的号码", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        
+        try {
+            ClipboardManager clipboard = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
+            ClipData clip = ClipData.newPlainText("确认号码", confirmedNumbers);
+            clipboard.setPrimaryClip(clip);
+            Toast.makeText(this, "已复制确认号码到剪贴板", Toast.LENGTH_SHORT).show();
+        } catch (Exception e) {
+            Toast.makeText(this, "复制失败：" + e.getMessage(), Toast.LENGTH_SHORT).show();
+        }
     }
     
     // 计算中奖分数
